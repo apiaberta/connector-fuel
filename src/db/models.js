@@ -27,6 +27,7 @@ stationSchema.index({ lat: 1, lng: 1 })
 const summarySchema = new mongoose.Schema({
   fuel_slug:     { type: String, required: true },
   fuel_name:     String,
+  road_vehicle:  Boolean,
   avg_price:     Number,
   min_price:     Number,
   max_price:     Number,

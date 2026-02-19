@@ -10,9 +10,23 @@ const BASE_URL = 'https://precoscombustiveis.dgeg.gov.pt/api/PrecoComb'
 const HEADERS  = { 'User-Agent': 'Mozilla/5.0 (apiaberta.pt data connector)' }
 
 const FUEL_TYPES = [
-  { id: 3201, slug: 'gasoline_95',       name: 'Gasolina 95' },
-  { id: 3205, slug: 'gasoline_95_plus',  name: 'Gasolina 95 (especial)' },
-  { id: 3210, slug: 'gasoline_2stroke',  name: 'Gasolina 2 tempos' }
+  // Gasolinas
+  { id: 3201, slug: 'gasoline_95',          name: 'Gasolina simples 95',                  road: true  },
+  { id: 3205, slug: 'gasoline_95_plus',     name: 'Gasolina especial 95',                 road: true  },
+  { id: 3400, slug: 'gasoline_98',          name: 'Gasolina 98',                          road: true  },
+  { id: 3405, slug: 'gasoline_98_plus',     name: 'Gasolina especial 98',                 road: true  },
+  { id: 3210, slug: 'gasoline_2stroke',     name: 'Gasolina mistura (2 tempos)',          road: false },
+  // Gasóleos
+  { id: 2101, slug: 'diesel',               name: 'Gasóleo simples',                      road: true  },
+  { id: 2105, slug: 'diesel_plus',          name: 'Gasóleo especial',                     road: true  },
+  { id: 2150, slug: 'diesel_colored',       name: 'Gasóleo colorido',                     road: false },
+  { id: 2155, slug: 'diesel_heating',       name: 'Gasóleo de aquecimento',               road: false },
+  { id: 2115, slug: 'biodiesel_b15',        name: 'Biodiesel B15',                        road: false },
+  // Gás
+  { id: 1120, slug: 'gpl_auto',             name: 'GPL Auto',                             road: true  },
+  { id: 1141, slug: 'gnc_m3',              name: 'GNC (gás natural comprimido) €/m³',    road: true  },
+  { id: 1143, slug: 'gnc_kg',              name: 'GNC (gás natural comprimido) €/kg',    road: true  },
+  { id: 1142, slug: 'gnl_kg',              name: 'GNL (gás natural liquefeito) €/kg',    road: true  },
 ]
 
 export async function fetchAndStore() {
@@ -39,14 +53,15 @@ export async function fetchAndStore() {
 
     if (prices.length) {
       const summary = {
-        fuel_slug:   fuel.slug,
-        fuel_name:   fuel.name,
-        avg_price:   avg(prices),
-        min_price:   Math.min(...prices),
-        max_price:   Math.max(...prices),
+        fuel_slug:    fuel.slug,
+        fuel_name:    fuel.name,
+        road_vehicle: fuel.road,
+        avg_price:    avg(prices),
+        min_price:    Math.min(...prices),
+        max_price:    Math.max(...prices),
         station_count: prices.length,
-        date:        new Date().toISOString().split('T')[0],
-        updated_at:  new Date()
+        date:         new Date().toISOString().split('T')[0],
+        updated_at:   new Date()
       }
       await FuelSummary.findOneAndUpdate(
         { fuel_slug: fuel.slug, date: summary.date },

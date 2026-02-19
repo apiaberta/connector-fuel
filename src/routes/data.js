@@ -22,6 +22,7 @@ export async function dataRoutes(app) {
       data: summaries.map(s => ({
         fuel_slug:     s.fuel_slug,
         fuel_name:     s.fuel_name,
+        road_vehicle:  s.road_vehicle,
         avg_price_eur: s.avg_price,
         min_price_eur: s.min_price,
         max_price_eur: s.max_price,
