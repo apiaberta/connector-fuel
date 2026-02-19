@@ -41,7 +41,7 @@ app.get('/meta', async () => {
 
 // ─── Data routes ─────────────────────────────────────────────────────────────
 
-await app.register(dataRoutes)
+await app.register(dataRoutes, { prefix: '/v1' })
 
 // ─── Cron: fetch daily at 07:30 Lisbon time ─────────────────────────────────
 
