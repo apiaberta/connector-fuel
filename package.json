@@ -1,7 +1,7 @@
 {
-  "name": "@apiaberta/service-template",
-  "version": "0.1.0",
-  "description": "Template for API Aberta data services",
+  "name": "@apiaberta/connector-fuel",
+  "version": "1.0.0",
+  "description": "DGEG fuel prices connector for API Aberta",
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
@@ -13,7 +13,5 @@
     "node-cron": "^3.0.0",
     "pino-pretty": "^13.0.0"
   },
-  "engines": {
-    "node": ">=22.0.0"
-  }
+  "engines": { "node": ">=22.0.0" }
 }

@@ -1,49 +1,117 @@
-/**
- * data.js — your public data routes
- *
- * Rules:
- * - All routes under /v1/
- * - Return JSON with consistent envelope: { data, meta }
- * - Support pagination: ?page=1&limit=20
- * - Support ?updated_since=ISO_DATE for polling
- * - Never expose internal IDs or raw source fields
- */
+import { Station, FuelSummary } from '../db/models.js'
 
 export async function dataRoutes(app) {
 
-  // Example: GET /v1/items
-  app.get('/items', {
+  // GET /v1/fuel/prices — current national averages per fuel type
+  app.get('/fuel/prices', {
     schema: {
-      description: 'List items', // TODO: describe your endpoint
-      tags: ['Data'],
+      description: 'Current national average fuel prices in Portugal',
+      tags: ['Fuel'],
       querystring: {
         type: 'object',
         properties: {
-          page:          { type: 'integer', default: 1 },
-          limit:         { type: 'integer', default: 20, maximum: 100 },
-          updated_since: { type: 'string', format: 'date-time' }
+          date: { type: 'string', description: 'YYYY-MM-DD (default: today)' }
         }
       }
     }
-  }, async (req, reply) => {
-    const { page = 1, limit = 20, updated_since } = req.query
-
-    // TODO: query your model
-    // const query = {}
-    // if (updated_since) query.updated_at = { $gte: new Date(updated_since) }
-    // const [items, total] = await Promise.all([
-    //   MyModel.find(query).skip((page - 1) * limit).limit(limit),
-    //   MyModel.countDocuments(query)
-    // ])
+  }, async (req) => {
+    const date = req.query.date || new Date().toISOString().split('T')[0]
+    const summaries = await FuelSummary.find({ date }).sort({ fuel_slug: 1 })
 
     return {
-      meta: {
-        page,
-        limit,
-        total: 0, // TODO: replace with actual total
-        pages: 0  // TODO: Math.ceil(total / limit)
-      },
-      data: []    // TODO: return your items
+      data: summaries.map(s => ({
+        fuel_slug:     s.fuel_slug,
+        fuel_name:     s.fuel_name,
+        avg_price_eur: s.avg_price,
+        min_price_eur: s.min_price,
+        max_price_eur: s.max_price,
+        station_count: s.station_count,
+        date:          s.date,
+        updated_at:    s.updated_at
+      }))
+    }
+  })
+
+  // GET /v1/fuel/stations — list stations with filters
+  app.get('/fuel/stations', {
+    schema: {
+      description: 'List fuel stations with prices',
+      tags: ['Fuel'],
+      querystring: {
+        type: 'object',
+        properties: {
+          fuel:     { type: 'string', description: 'Fuel slug (e.g. gasoline_95)' },
+          district: { type: 'string', description: 'Filter by district name' },
+          brand:    { type: 'string', description: 'Filter by brand (e.g. GALP, BP)' },
+          sort:     { type: 'string', enum: ['price_asc', 'price_desc'], default: 'price_asc' },
+          page:     { type: 'integer', default: 1, minimum: 1 },
+          limit:    { type: 'integer', default: 20, maximum: 100 }
+        }
+      }
+    }
+  }, async (req) => {
+    const { fuel = 'gasoline_95', district, brand, sort = 'price_asc', page = 1, limit = 20 } = req.query
+
+    const query = { fuel_slug: fuel, price_eur: { $gt: 0 } }
+    if (district) query.district = new RegExp(district, 'i')
+    if (brand)    query.brand    = new RegExp(brand, 'i')
+
+    const sortOrder = sort === 'price_asc' ? { price_eur: 1 } : { price_eur: -1 }
+    const skip = (page - 1) * limit
+
+    const [stations, total] = await Promise.all([
+      Station.find(query).sort(sortOrder).skip(skip).limit(limit),
+      Station.countDocuments(query)
+    ])
+
+    return {
+      meta: { page, limit, total, pages: Math.ceil(total / limit) },
+      data: stations.map(s => ({
+        station_id:    s.station_id,
+        name:          s.name,
+        brand:         s.brand,
+        fuel_name:     s.fuel_name,
+        price_eur:     s.price_eur,
+        address:       s.address,
+        locality:      s.locality,
+        municipality:  s.municipality,
+        district:      s.district,
+        postal_code:   s.postal_code,
+        location:      s.lat ? { lat: s.lat, lng: s.lng } : null,
+        updated_at:    s.updated_at
+      }))
+    }
+  })
+
+  // GET /v1/fuel/cheapest — cheapest stations near a point
+  app.get('/fuel/cheapest', {
+    schema: {
+      description: 'Find the cheapest fuel stations',
+      tags: ['Fuel'],
+      querystring: {
+        type: 'object',
+        properties: {
+          fuel:  { type: 'string', default: 'gasoline_95' },
+          limit: { type: 'integer', default: 10, maximum: 50 }
+        }
+      }
+    }
+  }, async (req) => {
+    const { fuel = 'gasoline_95', limit = 10 } = req.query
+    const stations = await Station
+      .find({ fuel_slug: fuel, price_eur: { $gt: 0 } })
+      .sort({ price_eur: 1 })
+      .limit(limit)
+
+    return {
+      data: stations.map(s => ({
+        name:         s.name,
+        brand:        s.brand,
+        price_eur:    s.price_eur,
+        municipality: s.municipality,
+        district:     s.district,
+        location:     s.lat ? { lat: s.lat, lng: s.lng } : null
+      }))
     }
   })
 }

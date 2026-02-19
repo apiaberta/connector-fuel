@@ -1,50 +1,111 @@
 /**
- * connector.js
- *
- * This is where you fetch data from the government source,
- * normalise it to your schema, and store it in MongoDB.
- *
- * Rules:
- * - NEVER expose raw source data directly
- * - Always validate and normalise before storing
- * - Handle errors gracefully (source may be down)
- * - Log what you fetch and any anomalies
+ * connector.js — DGEG fuel prices
+ * Source: https://precoscombustiveis.dgeg.gov.pt
+ * Updates: daily (07:00 PT)
  */
 
-// import { MyModel } from './db/model.js'
+import { Station, FuelSummary } from './db/models.js'
+
+const BASE_URL = 'https://precoscombustiveis.dgeg.gov.pt/api/PrecoComb'
+const HEADERS  = { 'User-Agent': 'Mozilla/5.0 (apiaberta.pt data connector)' }
+
+const FUEL_TYPES = [
+  { id: 3201, slug: 'gasoline_95',       name: 'Gasolina 95' },
+  { id: 3205, slug: 'gasoline_95_plus',  name: 'Gasolina 95 (especial)' },
+  { id: 3210, slug: 'gasoline_2stroke',  name: 'Gasolina 2 tempos' }
+]
 
 export async function fetchAndStore() {
-  // 1. Fetch from source
-  // const response = await fetch('https://source.gov.pt/api/data')
-  // const raw = await response.json()
+  let totalFetched = 0
+  const summaries = []
 
-  // 2. Normalise
-  // const records = raw.map(normalise)
+  for (const fuel of FUEL_TYPES) {
+    const stations = await fetchAllPages(fuel.id)
+    if (!stations.length) continue
 
-  // 3. Store (upsert to avoid duplicates)
-  // for (const record of records) {
-  //   await MyModel.findOneAndUpdate(
-  //     { id: record.id },
-  //     record,
-  //     { upsert: true, new: true }
-  //   )
-  // }
+    // Upsert each station
+    for (const raw of stations) {
+      await Station.findOneAndUpdate(
+        { station_id: raw.Id, fuel_slug: fuel.slug },
+        normalise(raw, fuel),
+        { upsert: true, new: true }
+      )
+    }
 
-  // 4. Return summary
-  // return { fetched: raw.length, stored: records.length }
+    // Compute daily summary
+    const prices = stations
+      .map(s => parsePrice(s.Preco))
+      .filter(p => p > 0)
 
-  throw new Error('fetchAndStore() not implemented - see connector.js')
+    if (prices.length) {
+      const summary = {
+        fuel_slug:   fuel.slug,
+        fuel_name:   fuel.name,
+        avg_price:   avg(prices),
+        min_price:   Math.min(...prices),
+        max_price:   Math.max(...prices),
+        station_count: prices.length,
+        date:        new Date().toISOString().split('T')[0],
+        updated_at:  new Date()
+      }
+      await FuelSummary.findOneAndUpdate(
+        { fuel_slug: fuel.slug, date: summary.date },
+        summary,
+        { upsert: true, new: true }
+      )
+      summaries.push(summary)
+    }
+
+    totalFetched += stations.length
+  }
+
+  return { fetched: totalFetched, fuel_types: summaries.length, summaries }
 }
 
-/**
- * Normalise a raw record from the source into your schema.
- * All field names should be in English, snake_case.
- */
-function normalise(raw) {
-  return {
-    // id:          raw.some_id,
-    // name:        raw.nome,
-    // value:       parseFloat(raw.valor),
-    // updated_at:  new Date(raw.data),
+async function fetchAllPages(fuelTypeId, pageSize = 500) {
+  const all = []
+  let page = 1
+
+  while (true) {
+    const url = `${BASE_URL}/PesquisarPostos?idsTiposComb=${fuelTypeId}&qtdPorPagina=${pageSize}&pagina=${page}`
+    const res = await fetch(url, { headers: HEADERS })
+    const data = await res.json()
+    const batch = data.resultado || []
+    if (!batch.length) break
+    all.push(...batch)
+    if (batch.length < pageSize) break
+    page++
   }
+
+  return all
+}
+
+function normalise(raw, fuel) {
+  return {
+    station_id:   raw.Id,
+    fuel_slug:    fuel.slug,
+    fuel_name:    fuel.name,
+    name:         raw.Nome?.trim(),
+    brand:        raw.Marca?.trim(),
+    type:         raw.TipoPosto?.trim(),
+    price_eur:    parsePrice(raw.Preco),
+    address:      raw.Morada?.trim(),
+    locality:     raw.Localidade?.trim(),
+    municipality: raw.Municipio?.trim(),
+    district:     raw.Distrito?.trim(),
+    postal_code:  raw.CodPostal?.trim(),
+    lat:          raw.Latitude,
+    lng:          raw.Longitude,
+    source_updated_at: raw.DataAtualizacao ? new Date(raw.DataAtualizacao) : null,
+    updated_at:   new Date()
+  }
+}
+
+function parsePrice(str) {
+  if (!str) return 0
+  return parseFloat(str.replace(',', '.').replace(/[^\d.]/g, '')) || 0
+}
+
+function avg(arr) {
+  return Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 1000) / 1000
 }
