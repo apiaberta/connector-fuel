@@ -22,6 +22,7 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/apiaberta-
 app.get('/health', async () => ({
   status: 'ok',
   service: SERVICE_NAME,
+  version: '1.0.0',
   timestamp: new Date().toISOString()
 }))
 
