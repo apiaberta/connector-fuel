@@ -11,19 +11,21 @@ jobs:
     steps:
       - name: Setup SSH
         env:
-          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SSH_KEY_B64: ${{ secrets.VPS_SSH_KEY_B64 }}
           KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          printf "%s" "$SSH_KEY" > ~/.ssh/deploy_key
+          echo "$SSH_KEY_B64" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          printf "%s\n" "$KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
 
       - name: Deploy
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          REPO: connector-fuel
+          PM2: apiaberta-fuel
         run: |
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
             "$VPS_USER@$VPS_HOST" \
-            "cd /data/apiaberta/connector-fuel && git pull origin main && npm ci --omit=dev && pm2 restart apiaberta-fuel && pm2 save && echo deployed"
+            "cd /data/apiaberta/$REPO && git pull origin main && npm ci --omit=dev && pm2 restart $PM2 && pm2 save && echo '✅ deployed'"
