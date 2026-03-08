@@ -15,8 +15,17 @@ export async function dataRoutes(app) {
       }
     }
   }, async (req) => {
-    const date = req.query.date || new Date().toISOString().split('T')[0]
-    const summaries = await FuelSummary.find({ date }).sort({ fuel_slug: 1 })
+    let date = req.query.date || new Date().toISOString().split('T')[0]
+
+    // Fallback: if no data for today yet (daily fetch runs at 07:30), use the latest available date
+    let summaries = await FuelSummary.find({ date }).sort({ fuel_slug: 1 })
+    if (!summaries.length && !req.query.date) {
+      const latest = await FuelSummary.findOne().sort({ date: -1 })
+      if (latest) {
+        date = latest.date
+        summaries = await FuelSummary.find({ date }).sort({ fuel_slug: 1 })
+      }
+    }
 
     return {
       data: summaries.map(s => ({
