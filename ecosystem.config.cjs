@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'apiaberta-fuel',
       script: 'src/index.js',
-      cwd: '/root/apiaberta/connector-fuel',
+      cwd: '/data/apiaberta/connector-fuel',
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
