@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "fastify": "^5.0.0",
@@ -13,5 +14,7 @@
     "node-cron": "^3.0.0",
     "pino-pretty": "^13.0.0"
   },
-  "engines": { "node": ">=22.0.0" }
+  "engines": {
+    "node": ">=22.0.0"
+  }
 }
