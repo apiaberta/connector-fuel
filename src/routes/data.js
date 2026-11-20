@@ -1,4 +1,5 @@
 import { Station, FuelSummary } from '../db/models.js'
+import { buildStationQuery } from '../query.js'
 
 export async function dataRoutes(app) {
 
@@ -52,6 +53,7 @@ export async function dataRoutes(app) {
         properties: {
           fuel:     { type: 'string', description: 'Fuel slug (e.g. gasoline_95)' },
           district: { type: 'string', description: 'Filter by district name' },
+          municipality: { type: 'string', description: 'Filter by municipality (concelho), case- and accent-insensitive, e.g. Fundao' },
           brand:    { type: 'string', description: 'Filter by brand (e.g. GALP, BP)' },
           sort:     { type: 'string', enum: ['price_asc', 'price_desc'], default: 'price_asc' },
           page:     { type: 'integer', default: 1, minimum: 1 },
@@ -60,11 +62,9 @@ export async function dataRoutes(app) {
       }
     }
   }, async (req) => {
-    const { fuel = 'gasoline_95', district, brand, sort = 'price_asc', page = 1, limit = 20 } = req.query
+    const { fuel = 'gasoline_95', district, municipality, brand, sort = 'price_asc', page = 1, limit = 20 } = req.query
 
-    const query = { fuel_slug: fuel, price_eur: { $gt: 0 } }
-    if (district) query.district = new RegExp(district, 'i')
-    if (brand)    query.brand    = new RegExp(brand, 'i')
+    const query = buildStationQuery({ fuel, district, municipality, brand })
 
     const sortOrder = sort === 'price_asc' ? { price_eur: 1 } : { price_eur: -1 }
     const skip = (page - 1) * limit
